@@ -8,6 +8,7 @@
 # specific language governing permissions and limitations under the License.
 
 cmake_minimum_required(VERSION 3.2)
+option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 project(dynamodb-examples)
 set (CMAKE_CXX_STANDARD 11)
 

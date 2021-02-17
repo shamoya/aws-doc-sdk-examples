@@ -59,22 +59,21 @@ int main(int argc, char** argv)
         "    get_item HelloTable World\n"
         "    get_item SiteColors text \"default, bold\"\n";
 
-    if (argc < 3)
-    {
-        std::cout << USAGE;
-        return 1;
-    }
-
     Aws::SDKOptions options;
 
+    std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
     Aws::InitAPI(options);
+    std::chrono::steady_clock::time_point init = std::chrono::steady_clock::now();
     {
         const Aws::String table(argv[1]);
         const Aws::String name(argv[2]);
-        const Aws::String projection(argc > 3 ? argv[3] : "");
+        const Aws::String name2(argv[3]);
+        const Aws::String projection("");
 
         // snippet-start:[dynamodb.cpp.get_item.code]
         Aws::Client::ClientConfiguration clientConfig;
+        clientConfig.region = "us-east-2";
+        clientConfig.endpointOverride = "http://localhost:8000";
         Aws::DynamoDB::DynamoDBClient dynamoClient(clientConfig);
         Aws::DynamoDB::Model::GetItemRequest req;
 
@@ -85,6 +84,8 @@ int main(int argc, char** argv)
         req.AddKey("Name", hashKey);
         if (!projection.empty())
             req.SetProjectionExpression(projection);
+
+        std::chrono::steady_clock::time_point inner1 = std::chrono::steady_clock::now();
 
         // Retrieve the item's fields and values
         const Aws::DynamoDB::Model::GetItemOutcome& result = dynamoClient.GetItem(req);
@@ -108,8 +109,53 @@ int main(int argc, char** argv)
         {
             std::cout << "Failed to get item: " << result.GetError().GetMessage();
         }
+
+        std::chrono::steady_clock::time_point inner2 = std::chrono::steady_clock::now();
+        Aws::DynamoDB::Model::GetItemRequest req2;
+
+        // Set up the request
+        req2.SetTableName(table);
+        Aws::DynamoDB::Model::AttributeValue hashKey2;
+        hashKey2.SetS(name2);
+        req2.AddKey("Name", hashKey2);
+
+        const Aws::DynamoDB::Model::GetItemOutcome& result2 = dynamoClient.GetItem(req2);
+        if (result.IsSuccess())
+        {
+            // Reference the retrieved fields/values
+            const Aws::Map<Aws::String, Aws::DynamoDB::Model::AttributeValue>& item = result.GetResult().GetItem();
+            if (item.size() > 0)
+            {
+                // Output each retrieved field and its value
+                for (const auto& i : item)
+                    std::cout << i.first << ": " << i.second.GetS() << std::endl;
+            }
+            else
+            {
+                std::cout << "No item found with the key " << name << std::endl;
+            }
+        }
+        else
+        {
+            std::cout << "Failed to get item: " << result.GetError().GetMessage();
+        }
+
+        std::chrono::steady_clock::time_point inner3 = std::chrono::steady_clock::now();
         // snippet-end:[dynamodb.cpp.get_item.code]
+
+        std::cout << "Inner 1 = " << std::chrono::duration_cast<std::chrono::microseconds>(inner2 - inner1).count() << "[µs]" << std::endl;
+        std::cout << "Inner 2 = " << std::chrono::duration_cast<std::chrono::microseconds>(inner3 - inner2).count() << "[µs]" << std::endl;
+
+
     }
+    std::chrono::steady_clock::time_point out = std::chrono::steady_clock::now();
     Aws::ShutdownAPI(options);
+    std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+
+    std::cout << "Overall = " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << "[µs]" << std::endl;
+    std::cout << "Init = " << std::chrono::duration_cast<std::chrono::microseconds>(init - begin).count() << "[µs]" << std::endl;
+    std::cout << "put = " << std::chrono::duration_cast<std::chrono::microseconds>(out - init).count() << "[µs]" << std::endl;
+    std::cout << "Exit = " << std::chrono::duration_cast<std::chrono::microseconds>(end - out).count() << "[µs]" << std::endl;
+
     return 0;
 }
